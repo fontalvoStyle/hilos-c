@@ -24,7 +24,7 @@ void intercambiar(int *a, int *b) {
   *b = temporal;
 }
 
-void burbuja(int *arreglo, int longitud) {
+void burbuja( int *arreglo, int longitud) {
   for (int x = 0; x < longitud; x++) {
     // Recuerda que el -1 es porque no queremos llegar al final ya que hacemos
     // un indiceActual + 1 y si fuéramos hasta el final, intentaríamos acceder a un valor fuera de los límites
@@ -89,8 +89,8 @@ int main() {
     pthread_t hilos[ cantidadDeHilos ]; // guarda los identificadors de los hilos
 
     for( int i = 0; i < cantidadDeHilos; i++ ) {
-        int *indice = (int *) malloc( sizeof( int ) );
-        *indice = i;
+        int *indice = (int *) malloc( sizeof( int ) ); //variable que va a guardar la copia del indice
+        *indice = i; // copiando el indice
 
         pthread_create( &hilos[ i ], NULL, funcion_hilo, indice );
     }
@@ -120,12 +120,15 @@ int main() {
     fclose( file );
 
    } else{
+
     printf( "Error al abrir el archivo\n" );
+    
    }
 
 }
 
 void *funcion_hilo( void *param ) {
+
     int *indice = (int *)param;
     int almacen[ 100 ];
     int comienzo = *indice * intervalo;
@@ -154,6 +157,7 @@ void *funcion_hilo( void *param ) {
         pthread_barrier_wait( &mybarrier );
 
         pthread_mutex_lock(&mutex);
+
         while(turno != *indice) pthread_cond_wait(&cond, &mutex);	
 
         for( int k = 0 ;  k < cantidadDeNumerosAsignados; k++ ) {
@@ -163,6 +167,7 @@ void *funcion_hilo( void *param ) {
     
         turno++;
         pthread_cond_broadcast(&cond);
+
         pthread_mutex_unlock(&mutex);
       
     }
