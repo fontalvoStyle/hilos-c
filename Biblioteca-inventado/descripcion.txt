@@ -1,0 +1,29 @@
+El problema consiste en una biblioteca donde hay varios 
+escritores y lectores en el momento.
+
+Los escritores han decidido editar algunos libros por lo que 
+un lector no podría leer dicho libro mientras se esté editando.
+
+Varios lectores pueden leer el mismo libro en un determinado instante ( como si se tratase de un grupo de estudio)
+pero los editores no pueden editar el mismo libro al tiempo.
+
+los libros deben ser leidos de un archivo de texto con el siguiente formato
+
+n : cantidad de libros en el archivo
+tiutlo del primer libro
+contenido del primer libro
+titulo del segundo libro
+contendio del segundo libro
+
+.
+.
+.
+titulo del n libro
+contendio del n libro
+
+
+condiciones
+
+-> si un escritor intenta editar un libro que está siendo o fue editado , debe pasar al siguiente.
+-> un escritor debe demorar medio segundo editando un libro y notificar el titulo del libro que está editando
+-> cuanodo un lector lee un libro debe notificarlo

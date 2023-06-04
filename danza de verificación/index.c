@@ -1,128 +1,160 @@
 #include <stdlib.h>
 #include <unistd.h>
-#include <stdio.h>
 #include <pthread.h>
-#include <string.h>
+#include <stdio.h>
+#include <signal.h>
 
-int limitePista = 0;
 
-int **pasosDeLosRobots; 
-int cantidadDePasosPorRobot;
-int *pista;
+const int true  = 1;
+const int false = -1;
+int pasosPorRobot = 4;
+int cuposEnLaPista;
 
-pthread_barrier_t mybarrier; 
-pthread_cond_t  cond  = PTHREAD_COND_INITIALIZER;
+int cantidadDeRobots;
+
+int **pasosDeLosRobots;
+
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t mutexCond = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
 
-void *funcion_hilo( void *param );
-
-int main( int cantidadArgumentos, char ** argumentos ) {
-
-    FILE *file = fopen( argumentos[ 3 ], "r" );
-
-    if( file != NULL ) {
-
-        int cantidadDeRobots = atoi( argumentos[ 1 ] ); 
-
-        pasosDeLosRobots = (int **) malloc( sizeof( int *) * cantidadDeRobots ); // cada fila será una secuencia de pasos de un robot
-
-        pthread_barrier_init( &mybarrier, NULL, cantidadDeRobots ); //inicializando barrera
-
-        
-        //vamos a leer los pasos de los robots del archivo y guardarlos en "pasosDeLosRobots"
-        
-        char *posicion;
-        char numero[2];
-        printf( "Ingresa el número de pasos que realiza cada robot: " );
-        scanf("%d", &cantidadDePasosPorRobot );
-
-        pista = (int *) malloc( sizeof( int ) * cantidadDePasosPorRobot );
-        
-        for( int i = 0; i < cantidadDeRobots; i++) {
-
-            fscanf( file ,"%s", numero ); //leyendo el primer caracter de la linea ejemplo 1:   2:  3: ....
-
-            pasosDeLosRobots[ i ] = (int * ) malloc( sizeof( int ) * cantidadDePasosPorRobot );
-
-            for( int j = 0; j < cantidadDePasosPorRobot; j++ ) { // el 4 es el número de pasos que realiza cada robot
-                fscanf( file ,"%s", numero );
-               pasosDeLosRobots[ i ][ j ] =  atoi( numero );
-            }
-            
-            
+int  verificarPistaDeBaile() {
+    int haycupos = false;
+    pthread_mutex_lock( &mutex );
+        if( cuposEnLaPista > 0 ){
+            cuposEnLaPista--;
+            haycupos = true;
         }
+    pthread_mutex_unlock( &mutex );
 
-        fclose( file ); // cerramos el archivo
+    return haycupos;
 
-        //imprimiendo los pasos de los robots
-
-        for( int i = 0; i < cantidadDeRobots; i++) {
-            printf( "pasos del robot %d :", i +1 );
-            for( int j = 0; j < cantidadDePasosPorRobot; j++ ) { 
-               printf( "[ %d ]", pasosDeLosRobots[ i ][ j ] );
-            }
-            printf( "\n" );
-               
-        }
-
-
-        limitePista = atoi( argumentos[ 2 ] );
-
-        //creamos los robots
-
-        pthread_t identificadoresRobots[ cantidadDeRobots ];
-
-        for( int i = 0; i < cantidadDeRobots; i++ ) {
-
-            int *copiaIndice = (int *) malloc( sizeof( int ) );
-            *copiaIndice = i;
-            pthread_create( &identificadoresRobots[ i], NULL, funcion_hilo, copiaIndice );
-        }
-
-        //esperamos a que los robots terminen de hacer su procesos de verificación
-
-        for( int i = 0; i < cantidadDeRobots; i++ ) {
-            pthread_join( identificadoresRobots[ i ], NULL );
-        }
-
-        printf( "Todos los robots han terminado de bailar y están comenzado a trabajar\n" );
-
-        free( pasosDeLosRobots );
-
-    }else {
-        printf( "No hemos podido abrir el archivo\n" );
-    }
 }
 
-void *funcion_hilo( void *param ) {
-    int *indice = (int *)param;
-    pthread_barrier_wait( &mybarrier ); // que todos los robots empiecen a bailar al tiempo
-    int esperaPorPrimeraVez = 1;
-    srand( time(NULL) );
-    for( int i = 0; i < cantidadDePasosPorRobot; i++ ) {
+int  bailar( int indiceRobot ){
+
+    int pudoBailar = false;
+
+    if( verificarPistaDeBaile( ) == true ){
+
+        printf( "El robot %d ha comenzado a  bailar y ahora hay %d cupos\n", indiceRobot, cuposEnLaPista );
         
-        int pasoAEjecutar = pasosDeLosRobots[ *indice ][ i ];
+        for( int i = 0; i < pasosPorRobot; i++ ) {
+            printf( "El robot %d está ejecutando el paso %d\n", indiceRobot, pasosDeLosRobots[ indiceRobot][ i ] );
+            usleep( 500000 );
+        }
+    
+        pthread_mutex_lock( &mutex );
+            cuposEnLaPista++;
+            printf( "El robot %d ha terminado de bailar y ahora hay %d cupos\n", indiceRobot, cuposEnLaPista );
+            pthread_cond_broadcast( &cond );
+        pthread_mutex_unlock( &mutex );
         
-        pthread_mutex_lock(&mutex);
-        pista[ pasoAEjecutar ]++; 
-        while( pista [ pasoAEjecutar ] > limitePista ){
-           printf( "Robot %d está esperando para iniciar el paso %d\n", *indice + 1, pasoAEjecutar );
-           pthread_cond_wait(&cond, &mutex);	
+        pudoBailar = true;
+    }
+
+    return pudoBailar;
+}
+
+void esperar() {
+
+    pthread_mutex_lock( &mutexCond);
+    pthread_cond_wait( &cond, &mutexCond );
+    pthread_mutex_unlock( &mutexCond );
+}
+
+void *robot( void *param );
+
+int main( ) {
+
+    FILE *file = fopen( "pasos.txt", "r" );
+
+    if( file != NULL ){
+
+        printf( "Por favor ingresa el número de robots que van a hacer la verificación: " );
+        scanf( "%d", &cantidadDeRobots );
+
+        printf( "Por favor ingresa el limite de la pista de baile: " );
+        scanf( "%d", &cuposEnLaPista );
+
+        pasosDeLosRobots = ( int ** ) malloc( sizeof( int * )  * cantidadDeRobots );
+
+        //leer los pasos de los robots 
+        char *paso = (char *) malloc( sizeof( char ) * 2 );
+
+        for( int i = 0; i < cantidadDeRobots ; i++ ) {
+            fscanf( file, "%s", paso); // simplemente rueda el putero
+            pasosDeLosRobots[ i ] = (int *) malloc( sizeof( int ) * pasosPorRobot );
+            for( int j = 0; j < pasosPorRobot; j++ ) {
+                fscanf( file,  "%s", paso);
+                pasosDeLosRobots[ i ][ j ] = atoi( paso );
+            }
         }
 
-        printf( "Robot %d ha inciado el paso %d\n", *indice + 1, pasosDeLosRobots[ *indice ][ i ] );
-        pthread_cond_broadcast(&cond);
-        pthread_mutex_unlock(&mutex);
-        sleep( rand() % 3 + 1 );
-        printf( "Robot %d ha finalizado el paso %d\n", *indice + 1, pasosDeLosRobots[ *indice ][ i ] );
-        pthread_mutex_lock(&mutex);
-        pista[ pasoAEjecutar ]--; 
-        pthread_mutex_unlock(&mutex);
+        free( paso );
+        fclose( file );
+    
 
+        for( int i = 0; i < cantidadDeRobots ; i++ ) {
+            printf( "Pasos del robot %d: ", i );
+            for( int j = 0; j < pasosPorRobot; j++ ) {
+                printf("%d ", pasosDeLosRobots[i][j] );
+            }
+            printf("\n");
+        }
+
+        //creando robots
+
+        pthread_t idRobots[ cantidadDeRobots ];
+
+        for( int i = 0; i < cantidadDeRobots; i++ ) {
+            int *copiaIndice = (int * ) malloc( sizeof( int ) );
+            *copiaIndice  = i;
+            pthread_create( &idRobots[ i ], NULL , robot, copiaIndice );
+        }
+
+        //esperamos hilos
+
+        for( int i = 0; i < cantidadDeRobots; i++ ) {
+           pthread_join( idRobots[ i ], NULL  );
+        }
+
+        printf( "El programa ha finalizado correctamente\n" );
+
+        free( pasosDeLosRobots ); 
+    
+    }else{
+
+        printf( "No se ha podido abrir el archivo correctamente\n" );
 
     }
 
-    printf( "Robot %d ha terminado el paso %d y está esperando a los demás\n", *indice + 1, cantidadDePasosPorRobot );
-    pthread_barrier_wait( &mybarrier ); // que todos los robots empiecen a bailar al tiempo
 
+}
+
+void *robot( void *param ) {
+
+    int *indice = (int *) param;
+    int contador = 0;
+
+    while ( contador < 2 ) {
+        
+        contador++;
+
+        if( bailar( *indice ) == false ) {
+
+            printf( "El rebot %d está esperando\n", *indice );
+
+            do{
+                esperar();
+
+            }while ( bailar( *indice ) == false );
+
+            sleep( 1 );
+    
+        }
+ 
+      
+    }
+    pthread_exit( 0 );
 }
