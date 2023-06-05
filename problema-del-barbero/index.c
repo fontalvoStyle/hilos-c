@@ -13,7 +13,7 @@ int sillaDeServicioOcupada = false;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutexCond = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
-pthread_barrier_t 
+pthread_barrier_t myBarrier;
 
 int  sentarseEnSillaDeServicio( ) {
 
@@ -21,7 +21,7 @@ int  sentarseEnSillaDeServicio( ) {
 
     pthread_mutex_lock( &mutex );
         if( sillaDeServicioOcupada == false ){
-            sillaDeServicioOcupada == true;
+            sillaDeServicioOcupada = true;
             pudoSentarse = true;
         }
     pthread_mutex_unlock( &mutex );
@@ -34,7 +34,7 @@ void bajarseDeLaSillaDeServicio(){
 
     pthread_mutex_lock( &mutex );
         if( sillaDeServicioOcupada == true ){
-            sillaDeServicioOcupada == false;
+            sillaDeServicioOcupada = false;
             pthread_cond_broadcast( &cond );
         }
     pthread_mutex_unlock( &mutex );
@@ -72,8 +72,6 @@ void esperar() {
 
 }
 
-
-
 void *cliente( void *param );
 
 int main() {
@@ -84,6 +82,8 @@ int main() {
 
         fscanf( file, "%d", &cantidadDeClientes );
         fscanf( file , "%d", &sillasDisponibles );
+
+        pthread_barrier_init( &myBarrier, NULL, cantidadDeClientes );
 
         pthread_t idClientes[ cantidadDeClientes ];
 
@@ -109,6 +109,8 @@ int main() {
 void *cliente( void *param )  {
 
     int *idCliente = (int * ) param;
+    
+    pthread_barrier_wait( &myBarrier );
 
     if( sentarseEnSillaDeServicio() == true ) {
 

@@ -1,0 +1,3 @@
+pthread_barrier_t myBarrier;
+pthread_barrier_init( &myBarrier, NULL, numeroDeHilosAEsperar );
+pthread_barrier_wait( &myBarrier );
